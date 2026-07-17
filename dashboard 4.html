@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Electrical Monitoring Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { navy: '#1E3A8A' } } } }
+    </script>
+    <!-- Firebase SDK (compat version, cocok untuk plain HTML tanpa bundler) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+
+        <!-- HEADER -->
+        <header class="bg-navy p-6 md:p-8 rounded-3xl shadow-lg text-white flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div class="flex items-center gap-4">
+                <div class="w-12 h-12 flex items-center justify-center bg-white/10 rounded-xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-7 h-7">
+                        <path d="M12 2 3 7l9 5 9-5-9-5Z"/>
+                        <path d="M3 7v10l9 5 9-5V7"/>
+                        <path d="M12 12v10"/>
+                        <path d="M7 4v3M17 4v3"/>
+                        <path d="M5 12v-2M19 12v-2"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-bold">Sistem Monitoring Kelistrikan - Komunikasi LoRa</h1>
+                </div>
+            </div>
+            <div class="flex items-center gap-6 text-sm text-blue-200">
+                <div class="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-4 h-4"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+                    <span id="timestamp">--:--:--</span>
+                </div>
+                <button onclick="location.reload()" class="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-4 h-4"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+                    Auto Refresh
+                </button>
+            </div>
+        </header>
+
+        <!-- STATUS ROW -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
+                <div class="flex items-center gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5 text-slate-400"><path d="M3 20h.01M7 20v-4M11 20v-8M15 20V8M19 20V4"/></svg>
+                    <span class="text-slate-500 text-sm">LoRa RSSI</span>
+                    <span class="ml-auto font-mono text-sm">:</span>
+                    <span id="rssi" class="font-semibold">-68 dBm</span>
+                    <span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5 text-slate-400"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+                    <span class="text-slate-500 text-sm">Node Status</span>
+                    <span class="ml-auto font-mono text-sm">:</span>
+                    <span id="node-status" class="text-green-600 font-bold">Online</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5 text-slate-400"><path d="M5 12h14M5 12a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2M5 12a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2"/></svg>
+                    <span class="text-slate-500 text-sm">Gateway Status</span>
+                    <span class="ml-auto font-mono text-sm">:</span>
+                    <span id="gateway-status" class="text-green-600 font-bold">Online</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" class="w-5 h-5 text-slate-400"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+                    <span class="text-slate-500 text-sm">Last Update</span>
+                    <span class="ml-auto font-mono text-sm">:</span>
+                    <span id="lastupdate" class="font-semibold">--</span>
+                </div>
+            </div>
+
+            <div class="bg-green-50 border border-green-200 p-6 rounded-2xl shadow-sm flex items-center gap-4">
+                <div class="w-12 h-12 flex-shrink-0 rounded-full bg-green-600 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" class="w-6 h-6"><path d="M20 6 9 17l-5-5"/></svg>
+                </div>
+                <div>
+                    <p class="font-bold text-lg text-slate-800">Sistem Normal</p>
+                    <p class="text-slate-500 text-sm">Semua parameter dalam batas aman</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- METRIC CARDS -->
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-blue-500 flex items-start justify-between">
+                <div>
+                    <p class="text-blue-600 text-[11px] uppercase font-bold tracking-wide">Voltage</p>
+                    <p class="text-2xl font-black text-navy" id="val-volt">220 V</p>
+                    <p class="text-[11px] text-green-600 mt-1 flex items-center gap-1" id="stat-volt">● Normal</p>
+                </div>
+                <div class="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+                </div>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-green-500 flex items-start justify-between">
+                <div>
+                    <p class="text-green-600 text-[11px] uppercase font-bold tracking-wide">Current</p>
+                    <p class="text-2xl font-black text-navy" id="val-amp">0.35 A</p>
+                    <p class="text-[11px] text-green-600 mt-1" id="stat-amp">● Normal</p>
+                </div>
+                <div class="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center text-green-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+                </div>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-orange-500 flex items-start justify-between">
+                <div>
+                    <p class="text-orange-600 text-[11px] uppercase font-bold tracking-wide">Power</p>
+                    <p class="text-2xl font-black text-navy" id="val-power">77 W</p>
+                    <p class="text-[11px] text-green-600 mt-1" id="stat-power">● Normal</p>
+                </div>
+                <div class="w-9 h-9 rounded-full bg-orange-50 flex items-center justify-center text-orange-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5"><path d="M13 2 3 14h7l-1 8 11-14h-7l1-6Z"/></svg>
+                </div>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-purple-500 flex items-start justify-between">
+                <div>
+                    <p class="text-purple-600 text-[11px] uppercase font-bold tracking-wide">Energy</p>
+                    <p class="text-2xl font-black text-navy" id="val-energy">0.00 kWh</p>
+                    <p class="text-[11px] text-green-600 mt-1" id="stat-energy">● Normal</p>
+                </div>
+                <div class="w-9 h-9 rounded-full bg-purple-50 flex items-center justify-center text-purple-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+                </div>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-blue-500 flex items-start justify-between">
+                <div>
+                    <p class="text-blue-600 text-[11px] uppercase font-bold tracking-wide">Freq</p>
+                    <p class="text-2xl font-black text-navy" id="val-freq">50 Hz</p>
+                    <p class="text-[11px] text-green-600 mt-1" id="stat-freq">● Normal</p>
+                </div>
+                <div class="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+                </div>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 border-l-4 border-red-500 flex items-start justify-between">
+                <div>
+                    <p class="text-red-600 text-[11px] uppercase font-bold tracking-wide">Power Factor</p>
+                    <p class="text-2xl font-black text-navy" id="val-pf">0.98 PF</p>
+                    <p class="text-[11px] text-green-600 mt-1" id="stat-pf">● Normal</p>
+                </div>
+                <div class="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center text-red-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-5 h-5"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHARTS -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex items-center justify-between mb-3">
+                    <p class="font-bold text-blue-600 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="M3 3v18h18"/><path d="M7 15l4-6 4 3 5-8"/></svg>
+                        Voltage (V)
+                    </p>
+                    <select class="text-xs border border-slate-200 rounded-lg px-2 py-1 text-slate-500 bg-slate-50">
+                        <option>Realtime</option>
+                    </select>
+                </div>
+                <div class="relative h-56">
+                    <canvas id="chartVolt"></canvas>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex items-center justify-between mb-3">
+                    <p class="font-bold text-green-600 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="M3 3v18h18"/><path d="M7 15l4-6 4 3 5-8"/></svg>
+                        Current (A)
+                    </p>
+                    <select class="text-xs border border-slate-200 rounded-lg px-2 py-1 text-slate-500 bg-slate-50">
+                        <option>Realtime</option>
+                    </select>
+                </div>
+                <div class="relative h-56">
+                    <canvas id="chartAmp"></canvas>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex items-center justify-between mb-3">
+                    <p class="font-bold text-orange-500 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="M3 3v18h18"/><path d="M7 15l4-6 4 3 5-8"/></svg>
+                        Power (W)
+                    </p>
+                    <select class="text-xs border border-slate-200 rounded-lg px-2 py-1 text-slate-500 bg-slate-50">
+                        <option>Realtime</option>
+                    </select>
+                </div>
+                <div class="relative h-56">
+                    <canvas id="chartPower"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- DATA TABLE + EXPORT + INFO -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 lg:col-span-2 overflow-x-auto">
+                <div class="flex items-center justify-between mb-4">
+                    <p class="font-bold text-navy flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/></svg>
+                        Data Terakhir
+                    </p>
+                    <a href="#" id="link-view-all" target="_blank" class="text-blue-600 text-sm font-semibold flex items-center gap-1 hover:underline">
+                        Lihat Semua Data
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-3.5 h-3.5"><path d="M7 17 17 7M7 7h10v10"/></svg>
+                    </a>
+                </div>
+                <table class="w-full text-sm text-left">
+                    <thead>
+                        <tr class="text-slate-400 text-xs uppercase border-b border-slate-100">
+                            <th class="py-2 pr-4 font-semibold">Waktu</th>
+                            <th class="py-2 pr-4 font-semibold">Voltage (V)</th>
+                            <th class="py-2 pr-4 font-semibold">Current (A)</th>
+                            <th class="py-2 pr-4 font-semibold">Power (W)</th>
+                            <th class="py-2 pr-4 font-semibold">Energy (kWh)</th>
+                            <th class="py-2 pr-4 font-semibold">Freq (Hz)</th>
+                            <th class="py-2 pr-4 font-semibold">PF</th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-table-body" class="divide-y divide-slate-100">
+                        <!-- rows injected by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="font-bold text-navy flex items-center gap-2 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                        Ekspor & Histori
+                    </p>
+                    <p class="text-sm text-slate-500 mb-4">Riwayat data disimpan otomatis ke Google Spreadsheet</p>
+                    <a href="#" id="btn-open-sheet" target="_blank" class="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white p-3 rounded-xl font-semibold text-sm transition mb-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+                        Buka Spreadsheet
+                    </a>
+                    <a href="#" class="flex items-center justify-center gap-2 border border-slate-200 hover:bg-slate-50 text-slate-700 p-3 rounded-xl font-semibold text-sm transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+                        Export Data (CSV)
+                    </a>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="font-bold text-navy mb-3">Informasi Sistem</p>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between"><span class="text-slate-500">Node ID</span><span id="info-node-id" class="font-semibold text-blue-600">TRAFO-01</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Gateway ID</span><span id="info-gateway-id" class="font-semibold text-blue-600">GW-01</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Interval Update</span><span class="font-semibold">10 detik</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Sumber Data</span><span class="font-semibold text-right">Firebase Realtime Database</span></div>
+                        <div class="flex justify-between"><span class="text-slate-500">Penyimpanan Histori</span><span class="font-semibold text-right">Google Spreadsheet</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // ---- Clock ----
+        function updateClock() {
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+            document.getElementById('timestamp').textContent = `${now.getDate()} ${now.toLocaleString('id-ID',{month:'short'})} ${now.getFullYear()} ${timeStr}`;
+        }
+        updateClock();
+        setInterval(updateClock, 1000);
+
+        // ---- Charts ----
+        const maxPoints = 15;
+        const createChart = (id, label, color) => new Chart(document.getElementById(id).getContext('2d'), {
+            type: 'line',
+            data: { labels: [], datasets: [{ label, data: [], borderColor: color, backgroundColor: color + '20', tension: 0.35, pointRadius: 0, fill: true }] },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { grid: { color: '#f1f5f9' } }
+                }
+            }
+        });
+        const charts = {
+            v: createChart('chartVolt', 'Tegangan', '#1E3A8A'),
+            a: createChart('chartAmp', 'Arus', '#16a34a'),
+            p: createChart('chartPower', 'Daya', '#ea580c')
+        };
+
+        function pushPoint(chart, label, value) {
+            const d = chart.data;
+            d.labels.push(label);
+            d.datasets[0].data.push(value);
+            if (d.labels.length > maxPoints) {
+                d.labels.shift();
+                d.datasets[0].data.shift();
+            }
+            chart.update('none');
+        }
+
+        // ================= FIREBASE REALTIME DATABASE =================
+        const firebaseConfig = {
+            apiKey: "AIzaSyA9X5K5TkMhLC9rKbB8QZ-YPv2192Y3Lbc",
+            authDomain: "ta-nazwa-khairani.firebaseapp.com",
+            databaseURL: "https://ta-nazwa-khairani-default-rtdb.asia-southeast1.firebasedatabase.app/",
+            projectId: "ta-nazwa-khairani",
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // ================= GOOGLE SHEETS (READ-ONLY HISTORI) =================
+        const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbz4SjhHHjjiuHI_ilM7tnRBkA6-9LK0aQ3zq8aAmsWPCafozU2SwAm8joOBkWS_T2zNmg/exec";
+        const SHEET_VIEW_URL = "https://docs.google.com/spreadsheets/d/1Kf1iP2trvoxoP1xC5V6XWSpLOwp51kVOABQOmUXix-0/edit?hl=id&gid=0#gid=0";
+
+        // set link tombol "Buka Spreadsheet" & "Lihat Semua Data" (aman walau elemen tidak ada)
+        const btnOpenSheet = document.getElementById('btn-open-sheet');
+        if (btnOpenSheet) btnOpenSheet.href = SHEET_VIEW_URL;
+        const linkViewAll = document.getElementById('link-view-all');
+        if (linkViewAll) linkViewAll.href = SHEET_VIEW_URL;
+
+        const tableBody = document.getElementById('data-table-body');
+
+        function renderTable(rowsData) {
+            if (!tableBody || !Array.isArray(rowsData)) return;
+            tableBody.innerHTML = rowsData.map(r => `
+                <tr>
+                    <td class="py-2 pr-4">${r[0]}</td>
+                    <td class="py-2 pr-4">${r[1]}</td>
+                    <td class="py-2 pr-4">${r[2]}</td>
+                    <td class="py-2 pr-4">${r[3]}</td>
+                    <td class="py-2 pr-4">${r[4]}</td>
+                    <td class="py-2 pr-4">${r[5]}</td>
+                    <td class="py-2 pr-4">${r[6]}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function loadHistoryFromSheets() {
+            try {
+                const res = await fetch(`${SHEET_API_URL}?limit=8`);
+                const rowsData = await res.json();
+                renderTable(rowsData);
+            } catch (err) {
+                console.error("Gagal ambil histori dari Sheets:", err);
+            }
+        }
+
+        loadHistoryFromSheets();
+        setInterval(loadHistoryFromSheets, 10000); // sinkron dengan interval update gateway
+
+        // ---- Listener: data sensor realtime (kartu + grafik) ----
+        db.ref('sensor').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            const volt = Number(data.voltage ?? 0).toFixed(0);
+            const amp = Number(data.current ?? 0).toFixed(2);
+            const power = Math.round(data.power ?? 0);
+            const energy = Number(data.energy ?? 0).toFixed(2);
+            const freq = data.frequency ?? 50;
+            const pf = Number(data.pf ?? 0).toFixed(2);
+
+            document.getElementById('val-volt').textContent = `${volt} V`;
+            document.getElementById('val-amp').textContent = `${amp} A`;
+            document.getElementById('val-power').textContent = `${power} W`;
+            document.getElementById('val-energy').textContent = `${energy} kWh`;
+            document.getElementById('val-freq').textContent = `${freq} Hz`;
+            document.getElementById('val-pf').textContent = `${pf} PF`;
+
+            const now = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            const timeLabel = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+            pushPoint(charts.v, timeLabel, parseFloat(volt));
+            pushPoint(charts.a, timeLabel, parseFloat(amp));
+            pushPoint(charts.p, timeLabel, power);
+        });
+
+        // ---- Listener: status koneksi (node, gateway, rssi, lastUpdate) ----
+        db.ref('status').on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            document.getElementById('rssi').textContent = `${data.rssi ?? '--'} dBm`;
+            setStatusBadge('node-status', data.node);
+            setStatusBadge('gateway-status', data.gateway);
+
+            if (data.lastUpdate) {
+                const d = new Date(data.lastUpdate * 1000);
+                const pad = n => String(n).padStart(2, '0');
+                document.getElementById('lastupdate').textContent =
+                    `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+            }
+        });
+
+        function setStatusBadge(id, isOnline) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = isOnline ? 'Online' : 'Offline';
+            el.className = isOnline ? 'text-green-600 font-bold' : 'text-red-600 font-bold';
+        }
+
+        // ---- Info statis (nodeId, gatewayId) - dibaca sekali saja ----
+        db.ref('info').once('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+            const nodeIdEl = document.getElementById('info-node-id');
+            const gatewayIdEl = document.getElementById('info-gateway-id');
+            if (nodeIdEl) nodeIdEl.textContent = data.nodeId ?? '-';
+            if (gatewayIdEl) gatewayIdEl.textContent = data.gatewayId ?? '-';
+        });
+    </script>
+</body>
+</html>
